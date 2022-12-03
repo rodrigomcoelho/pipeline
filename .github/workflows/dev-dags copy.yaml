@@ -5,13 +5,13 @@ on:
       - main
       - dev
     paths:
-      - dags/*
+      - dags/**
   pull_request:
     branches:
       - main
       - dev
     paths:
-      - dags/*
+      - dags/**
 jobs:
   deploy:
     name: Upload DAG files to Airflow
@@ -28,6 +28,13 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+      - name: Verify files
+        run: |
+          FILES=$(git diff @~..@ --name-only --no-renames | sort)
+          for file in $FILES; do
+            echo $file
+          done
+
       - name: Check if there is changed files
         id: changed-files
         run: |

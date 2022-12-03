@@ -16,7 +16,7 @@ on:
       - dags/**
 jobs:
   deploy:
-    name: Upload DAG files to Airflow
+    name: Upload files to Composer
     runs-on: ubuntu-latest
     environment: dev
     env:
@@ -24,7 +24,7 @@ jobs:
       BUCKET_PATH: ${{ secrets.DEV_AIRFLOW_BUCKET }}/
 
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - path: dags/fisia/

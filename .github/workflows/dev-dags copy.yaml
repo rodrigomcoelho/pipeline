@@ -19,6 +19,8 @@ jobs:
       # listing changed files
       - name: List all changed files
         run: |
+          echo $(git --version)
+
           CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort)
           for file in $CHANGED_FILES;
           do

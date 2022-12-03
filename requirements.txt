@@ -1,0 +1,7 @@
+pre-commit
+black
+isort
+flake8
+pyupgrade
+pyupgrade-directories
+docformatter

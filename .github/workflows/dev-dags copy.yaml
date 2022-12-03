@@ -15,7 +15,7 @@ jobs:
     environment: dev
     env:
       DEST_BUCKET: gs://composer-dev-bucket/dags/data_eng_fis_cliente/
-      EXTENSIONS: ''
+      EXTENSIONS: \.py
 
     steps:
       # copying files to machine
@@ -26,7 +26,7 @@ jobs:
       - name: Check if there is changed files
         id: changed-files
         run: |
-          echo "ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep ${{ env.EXTENSIONS }} | sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
+          echo "ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '${{ env.EXTENSIONS }}' | sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
 
           if [ -z $ALL_CHANGED_FILES]
           then
@@ -35,8 +35,8 @@ jobs:
           fi
 
           echo "ANY_CHANGE=true" >> $GITHUB_OUTPUT
-          echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=ACM | sort | grep ${{ env.EXTENSIONS }} | sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
-          echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=RD | sort | grep ${{ env.EXTENSIONS }} | sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
+          echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=ACM | sort | grep '${{ env.EXTENSIONS }}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
+          echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=RD | sort | grep '${{ env.EXTENSIONS }}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
 
 
       # listing changed files
@@ -59,6 +59,6 @@ jobs:
           argo submit -n argo -w deploy/deploy-data-gcp.yml \
             --parameter "file_changed=${{ steps.changed-files.outputs.MODIFIED_FILES }}" \
             --parameter "file_deleted=${{ steps.changed-files.outputs.DELETED_FILES }}" \
-            --parameter "bucket_path=$destination" \
+            --parameter "bucket_path=${{ env.DEST_BUCKET }}" \
             --parameter "branch=$brach"
           '

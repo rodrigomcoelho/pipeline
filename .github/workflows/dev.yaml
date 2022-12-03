@@ -20,7 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     env:
-      SUB_DIRECTORY: fisia
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
       BUCKET_PATH: ${{ secrets.DEV_AIRFLOW_BUCKET }}/
 
@@ -28,9 +27,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - path: dags/${{ env.SUB_DIRECTORY }}/
+          - path: dags/fisia
             extension: \.py\|\.yaml
-          - path: plugins/${{ env.SUB_DIRECTORY }}/
+          - path: plugins/fisia
             extension: \.py
     steps:
       # copying files to machine

@@ -16,6 +16,8 @@ jobs:
       # copying files to machine
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       # listing changed files
       - name: List all changed files
         run: |

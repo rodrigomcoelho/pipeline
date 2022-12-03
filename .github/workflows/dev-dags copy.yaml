@@ -1,4 +1,4 @@
-name: Deploy DAGs to Composer
+name: New Deploy DAGs to Composer
 on:
   push:
     branches:
@@ -16,16 +16,10 @@ jobs:
       # copying files to machine
       - name: Checkout
         uses: actions/checkout@v3
-      # checking changed files
-      - name: Check changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v34.5.0
-        with:
-          files: |
-            dags/**
       # listing changed files
       - name: List all changed files
         run: |
+          CHANGED_FILES=$(git log --diff-filter D --pretty="format:" --name-only | sed '/^$/d')
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
             echo "$file was changed."
           done

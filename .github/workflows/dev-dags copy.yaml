@@ -22,7 +22,7 @@ jobs:
         id: changed-files
         run: |
           echo "all_changed_files=$(git diff @~..@ --name-only --no-renames | sort)" >> $GITHUB_OUTPUT
-          if -z $FILE_CHANGED;
+          if -z $all_changed_files;
           then
             echo "any_change=true" >> $GITHUB_OUTPUT
             echo "modified_files=$(git diff @~..@ --name-only --no-renames --name-status=ACM | sort)" >> $GITHUB_OUTPUT

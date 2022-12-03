@@ -9,6 +9,9 @@ from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python import PythonOperator
 
 sys.path.append("/home/airflow/gcs/dags/data_engineering/")
+sys.path.append("/home/airflow/gcs/dags/data_engineering/")
+sys.path.append("/home/airflow/gcs/dags/data_engineering/")
+
 import plugins.humbill.connection.query as qr
 
 # Informações da DAG

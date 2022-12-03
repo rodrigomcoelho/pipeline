@@ -26,10 +26,11 @@ jobs:
       - name: Check if there is changed files
         id: changed-files
         run: |
-          echo "ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '${{ env.EXTENSIONS }}' | sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
+          ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '${{ env.EXTENSIONS }}' | sed -e ':a; N; $!ba; s/\n/ /g')
 
           if [ -z $ALL_CHANGED_FILES]
           then
+            echo "No file changes."
             echo "has_changes=false" >> $GITHUB_OUTPUT
             exit 0
           fi

@@ -21,37 +21,38 @@ jobs:
       - name: Check if there is changed files
         id: changed-files
         run: |
-          echo "all_changed_files=$(git diff @~..@ --name-only --no-renames | sort)" >> $GITHUB_OUTPUT
-          if -z $all_changed_files;
+          echo "ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort)" >> $GITHUB_OUTPUT
+          if [ -z $ALL_CHANGED_FILES];
           then
-            echo "any_change=true" >> $GITHUB_OUTPUT
-            echo "modified_files=$(git diff @~..@ --name-only --no-renames --name-status=ACM | sort)" >> $GITHUB_OUTPUT
-            echo "deleted_files=$(git diff @~..@ --name-only --no-renames --name-status=RD | sort)" >> $GITHUB_OUTPUT
-          else
             echo "has_changes=false" >> $GITHUB_OUTPUT
-          fi
+            exit 0
+          if
+
+          echo "ANY_CHANGE=true" >> $GITHUB_OUTPUT
+          echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=ACM | sort)" >> $GITHUB_OUTPUT
+          echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=RD | sort)" >> $GITHUB_OUTPUT
 
       # listing changed files
       - name: List all changed files
-        if: steps.changed-files.outputs.any_change == 'true'
+        if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
-          for file in ${{ steps.changed-files.outputs.deleted_files }}; do
+          for file in ${{ steps.changed-files.outputs.DELETED_FILES }}; do
             echo "$file has been deleted."
           done
-          for file in ${{ steps.changed-files.outputs.modified_files }}; do
+          for file in ${{ steps.changed-files.outputs.MODIFIED_FILES }}; do
             echo "$file has been either added or modified."
           done
 
       - name: Applying changes to composer
-        if: steps.changed-files.outputs.any_change == 'true'
+        if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
           brach=$(echo ${{ github.ref }} | sed 's/refs\/heads\///g')
           destination=gs://composer-dev-bucket/dags/data_eng_fis_cliente/"
 
           echo '
           argo submit -n argo -w deploy/deploy-data-gcp.yml \
-            --parameter "file_changed=${{ steps.changed-files.outputs.modified_files }}" \
-            --parameter "file_deleted=${{ steps.changed-files.outputs.deleted_files }}" \
+            --parameter "file_changed=${{ steps.changed-files.outputs.MODIFIED_FILES }}" \
+            --parameter "file_deleted=${{ steps.changed-files.outputs.DELETED_FILES }}" \
             --parameter "bucket_path=$destination" \
             --parameter "branch=$brach"
           '

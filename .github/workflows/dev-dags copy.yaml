@@ -14,8 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     env:
-      DEST_BUCKET: gs://composer-dev-bucket/dags/data_eng_fis_cliente/
+      FOLDER: dags
       EXTENSIONS: \.py
+      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
     steps:
       # copying files to machine
@@ -26,7 +27,8 @@ jobs:
       - name: Check if there is changed files
         id: changed-files
         run: |
-          echo "${{ github.ref }}"
+          DEST_BUCKET=${{ secrets.DEV_AIRFLOW_BUCKET }}/${{ env.BRANCH_NAME }}/${{ github.event.repository.name }}/
+          echo "$DEST_BUCKET"
           ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '${{ env.EXTENSIONS }}' | sed -e ':a; N; $!ba; s/\n/ /g')
 
           if [ -z $ALL_CHANGED_FILES]
@@ -55,12 +57,11 @@ jobs:
       - name: Applying changes to composer
         if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
-          branch=$(echo ${{ github.ref }} | sed 's/refs\/heads\///g')
-
+          DEST_BUCKET=${{ secrets.DEV_AIRFLOW_BUCKET }}/${{ env.BRANCH_NAME }}/${{ github.event.repository.name }}/
           echo '
           argo submit -n argo -w deploy/deploy-data-gcp.yml \
             --parameter "file_changed=${{ steps.changed-files.outputs.MODIFIED_FILES }}" \
             --parameter "file_deleted=${{ steps.changed-files.outputs.DELETED_FILES }}" \
-            --parameter "bucket_path=${{ env.DEST_BUCKET }}" \
-            --parameter "branch=$branch"
+            --parameter "bucket_path=$DEST_BUCKET" \
+            --parameter "branch=${{ env.BRANCH_NAME }}"
           '

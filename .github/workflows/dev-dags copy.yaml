@@ -25,12 +25,11 @@ jobs:
           if [ -z $ALL_CHANGED_FILES];
           then
             echo "has_changes=false" >> $GITHUB_OUTPUT
-            exit 0
+          else
+            echo "ANY_CHANGE=true" >> $GITHUB_OUTPUT
+            echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=ACM | sort)" >> $GITHUB_OUTPUT
+            echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=RD | sort)" >> $GITHUB_OUTPUT
           if
-
-          echo "ANY_CHANGE=true" >> $GITHUB_OUTPUT
-          echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=ACM | sort)" >> $GITHUB_OUTPUT
-          echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=RD | sort)" >> $GITHUB_OUTPUT
 
       # listing changed files
       - name: List all changed files

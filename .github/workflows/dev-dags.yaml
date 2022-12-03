@@ -1,4 +1,4 @@
-name: New Deploy DAGs to Composer
+name: Deploy DAGs Changes to Composer
 on:
   push:
     branches:

@@ -1,4 +1,4 @@
-name: New Deploy plugins to Composer
+name: Deploy Plugin Changes to Composer
 on:
   push:
     branches:

@@ -39,7 +39,7 @@ jobs:
           fetch-depth: 0
 
       # check file changes
-      - name: Check file changes at ${{ matrix.folders }}
+      - name: Check file changes at ${{ matrix.path }}
         id: changed-files
         run: |
           ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '^${{ matrix.path }}' | grep '${{ matrix.extension }}')
@@ -57,7 +57,7 @@ jobs:
 
 
       # listing changed files
-      - name: List all changed files at ${{ matrix.folders }}
+      - name: List all changed files at ${{ matrix.path }}
         if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
           for file in ${{ steps.changed-files.outputs.DELETED_FILES }}; do
@@ -68,7 +68,7 @@ jobs:
           done
 
       # submit argo job for deploying
-      - name: Applying changes to composer at ${{ matrix.folders }}
+      - name: Applying changes to composer at ${{ matrix.path }}
         if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
 

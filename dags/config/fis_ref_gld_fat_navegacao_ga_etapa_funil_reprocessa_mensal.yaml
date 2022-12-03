@@ -1,0 +1,376 @@
+- SQL: |
+      MERGE INTO  `{PROJECT}.{CAMADA}.fis_ref_gld_fat_navegacao_ga_etapa_funil` f_ga
+      USING (
+        -- nome da tabela: fis_ref_gld_fat_navegacao_ga_etapa_funil
+        with tb_sessao_tratada as ( -- Nessa temporaria realizamos os tratamentos necessarios para conseguirmos acessar apenas os dados necessarios e tambem realizamos a padronizacao nos nomes dos campos
+            select
+            cast(parse_date('%Y%m%d',date) as date) as dat_navegacao -- Transformando o campo "date" do tipo string no tipo data
+          , case
+              when regexp_contains(lower(trafficSource.source), r'.*(awin|rakuten|zanox|lomadee).*')
+                  then 'AFILIADOS'
+              when regexp_contains(lower(trafficSource.source), r'.*(zoom|buscape).*')
+                  then 'COMPARADORES'
+              when regexp_contains(lower(trafficSource.source), r'.*(email_transacional|email_campaign|email_mkt_externo|campanhas|salescycle|socialminer|crm|transacionais).*')
+                  then 'CRM'
+              when regexp_contains(lower(trafficSource.source), r'.*facebook.*')
+                  then 'PAID SOCIAL'
+              when regexp_contains(lower(trafficSource.source), r'.*(googlepatrocinado|gp_pla|yahoo_patrocinado|yahoopatrocinado|gp_search|googleshop|googleads.g.doubleclick.net|googleadservices.com|cse.google.com|safeframe.googlesyndication.com).*')
+                or (regexp_contains(lower(trafficSource.source), '.*google.*') and regexp_contains(lower(trafficSource.medium), '.*cpc.*'))
+                or lower(channelGrouping) = 'paid search'
+                  then 'PAID SEARCH'
+              when regexp_contains(lower(trafficSource.source), r'.*(criteo|blue|rtbhouse).*')
+                  then 'RETARGETING'
+              when regexp_contains(lower(trafficSource.source), r'.*brand.*')
+                  then 'BRAND'
+              when regexp_contains(lower(trafficSource.source)||' / '||lower(trafficSource.medium), r'.*direct.*none.*')
+                  or regexp_contains(lower(trafficSource.source)||' / '||lower(trafficSource.medium), r'.*not set.*not set.*')
+                  or regexp_contains(lower(trafficSource.source), r'.*nike\.(com|neemu).*')
+                  or lower(channelGrouping) = 'direct'
+                  then 'DIRETO'
+              when regexp_contains(lower(trafficSource.medium), r'.*organic.*')
+                or lower(channelGrouping) = 'organic search'
+                  then 'SEO'
+              when lower(channelGrouping) = 'referral'
+                  then 'REFERRAL'
+              when lower(channelGrouping) = 'social'
+                  then 'SOCIAL'
+              else 'OUTROS'
+            end as des_canal_marketing
+          , case
+              when regexp_contains(lower(trafficSource.medium), r'.*organic.*')
+                  then 'SEO'
+              when regexp_contains(lower(trafficSource.source)||' / '||lower(trafficSource.medium), r'.*direct.*none.*')
+                  or regexp_contains(lower(trafficSource.source)||' / '||lower(trafficSource.medium), r'.*not set.*not set.*')
+                  or regexp_contains(lower(trafficSource.source), r'.*nike\.(com|neemu).*')
+                  then 'DIRETO'
+              when regexp_contains(lower(trafficSource.source), r'.*gp_search.*')
+                  then 'Google Search'
+              when regexp_contains(lower(trafficSource.source), r'.*googleshop.*')
+                  then 'Google Shopping'
+              when regexp_contains(lower(trafficSource.source), r'.*criteo.*')
+                  and regexp_contains(lower(trafficSource.medium), r'.*retargeting.*')
+                  then 'Criteo'
+              when regexp_contains(lower(trafficSource.source), r'.*blue.*')
+                  and regexp_contains(lower(trafficSource.medium), r'.*cpa.*')
+                  then 'GetBlue'
+              when regexp_contains(lower(trafficSource.source), r'.*rtbhouse.*')
+                  and regexp_contains(lower(trafficSource.medium), r'.*retargeting.*')
+                  then 'RTB House'
+              when regexp_contains(lower(trafficSource.source), r'.*zoom.*')
+                  then 'Zoom'
+              when regexp_contains(lower(trafficSource.source), r'.*yahoopatrocinado.*')
+                  then 'Bing'
+              when regexp_contains(lower(trafficSource.source), r'.*facebook.*')
+                  and regexp_contains(lower(trafficSource.medium), r'.*cpc.*')
+                  then 'Facebook'
+              when regexp_contains(lower(trafficSource.source), r'.*rakuten.*')
+                  then 'Rakuten'
+              when regexp_contains(lower(trafficSource.source), r'.*(zanox|awin).*')
+                  then 'Zanox'
+              when regexp_contains(lower(trafficSource.source), r'.*lomadee.*')
+                  then 'Lomadee'
+              when regexp_contains(lower(trafficSource.source), r'.*email_mkt_externo.*')
+                  then 'SalesCycle'
+              when regexp_contains(lower(trafficSource.source), r'.*socialminer.*')
+                  then 'SocialMiner'
+              when regexp_contains(lower(trafficSource.source), r'.*(email_transacional|rgs_transacional).*')
+                  then 'Transacionais'
+              when regexp_contains(lower(trafficSource.source), r'.*crm.*')
+                  and regexp_contains(lower(trafficSource.medium), r'.*behavior.*')
+                  then 'Behavior'
+              when regexp_contains(lower(trafficSource.source), r'.*crm.*')
+                  and regexp_contains(lower(trafficSource.medium), r'.*news.*')
+                  then 'News'
+              when regexp_contains(lower(trafficSource.source), r'.*crm.*')
+                  and regexp_contains(lower(trafficSource.medium), r'.*rgs.*')
+                  then 'Jornada'
+              else 'OUTROS'
+            end as des_fornecedor_marketing
+          , upper(h.type) as des_tipo_hit
+          , if(h.isInteraction = true, 1, 0) as flg_hit_com_interacao
+          , h.time as hor_hit_ms -- Tempo decorrido desdo inicio da sessao ate o momento do disparo do hit
+          , if(h.isExit = true, 1, 0) as flg_ultimo_hit -- Padronizando o valor null para 0 e o True para 1. Indica se o hit foi a ultima pagina/tela visualizada
+          , upper(device.deviceCategory) as des_categoria_dispositivo
+          , fullvisitorid as cod_usuario
+          , coalesce(totals.newvisits, 0) as flg_usuario_novo -- Utilizamos o coalesce pois o campo vem 1 ou null
+          , fullVisitorId||CAST(visitId AS STRING) as cod_sessao -- Concatenando os campos que formam a sessao no mesmo formato que eh utilizada no GA
+          , coalesce(totals.visits, 0) as flg_interacao -- Utilizamos o coalesce pois o campo vem 1 ou null
+          , coalesce(totals.bounces, 0) as flg_rejeicao -- Utilizamos o coalesce pois o campo vem 1 ou null
+          , cast(fullvisitorid as string)||' - '||cast(visitId  as string)||' - '||coalesce(h.page.pagepath, 'sem path')||' - '||coalesce(h.page.pagetitle, 'sem title') as des_pag_visualizada -- Concatetando os campos necessarios que sao utilizados para identificar o acesso em uma pagina
+          , trim(lower(h.page.pagePath)) as des_pagina_url
+          , lower(h.eventInfo.eventCategory) as des_categoria_evento
+          , h.eventInfo.eventAction as des_acao_evento
+          , h.transaction.transactionid as cod_pedido
+          , p.productSKU as cod_produto
+          , if(h.item.productname is not null, h.item.itemquantity,if(h.eCommerceAction.action_type = "6", p.productQuantity,0)) as qtd_item --parece que essa metrica nao esta configurada corretamente no GA, entao tento primeiro pegar da maneira correta, se nao tiver dados, pego da segunda maneira de forma paliativa
+          , coalesce(p.productRevenue,0)/1000000 as vlr_total_produto
+          , coalesce(h.transaction.transactionrevenue,0)/1000000 as vlr_total_pedido
+          , coalesce(h.transaction.transactionshipping,0)/1000000 as vlr_frete
+        from `fisia-data-lake.241894112.ga_sessions_*`
+        left join unnest(hits) h
+        left join unnest(h.product) p
+        where totals.visits = 1
+        and _table_suffix between FORMAT_DATE('%Y%m%d',DATE_TRUNC(CURRENT_DATE(), MONTH)) and FORMAT_DATE('%Y%m%d',DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY))
+        )
+        , etapa_tipo_page as (
+          select distinct --tirando o efeito de repeticao de cada etapa
+              dat_navegacao
+            , des_categoria_dispositivo
+            , des_canal_marketing
+            , des_fornecedor_marketing
+            , cod_sessao
+            , case
+                when des_tipo_hit = 'PAGE' or regexp_contains(des_pagina_url, r'^/checkout/confirmacao.*') = true
+                  then cod_sessao
+              end as cod_sessao_page
+            , case
+                when regexp_contains(lower(des_acao_evento), r'.*(sidebar.*cart|adicionar.*carrinho).*') = true
+                    or regexp_contains(lower(des_categoria_evento), r'.*(adicionar.*carrinho|addtocart).*') = true
+                  then null
+                when regexp_contains(lower(des_categoria_evento), r'^ui - login$') = true -- in ('ui - login', 'ui - complete seu cadastro')
+                      and regexp_contains(lower(des_acao_evento), r'.*login.*') --['Login', 'Recuperar Senha', 'Cadastro']
+                  then null
+                when regexp_contains(des_pagina_url, r'^/(\?.*)?$') = true
+                  then 'Home'
+                when regexp_contains(des_pagina_url, r'^/(busca.*|nav.*|hotsite.*|snkrs$|snkrs/calendario$|snkrs/estoque$|sc.*)') = true
+                  then 'Vitrine'
+                when regexp_contains(des_pagina_url, r'.*\.html.*') = true
+                  then 'PDP'
+                when regexp_contains(des_pagina_url, r'^/carrinho$') = true
+                  then 'Carrinho'
+                when regexp_contains(des_pagina_url, r'^/checkout$') = true
+                  then 'Entrega'
+                when regexp_contains(des_pagina_url, r'^/checkout/pagamento$') = true
+                  then 'Pagamento'
+                when regexp_contains(des_pagina_url, r'^/checkout/confirmacao.*') = true
+                  then 'Confirmação'
+                else 'Outros'
+              end as nom_etapa_atual_funil
+            , case
+                when regexp_contains(lower(des_acao_evento), r'.*(sidebar.*cart|adicionar.*carrinho).*') = true
+                    or regexp_contains(lower(des_categoria_evento), r'.*(adicionar.*carrinho|addtocart).*') = true
+                  then null
+                when regexp_contains(lower(des_categoria_evento), r'^ui - login$') = true -- in ('ui - login', 'ui - complete seu cadastro')
+                      and regexp_contains(lower(des_acao_evento), r'.*login.*') --['Login', 'Recuperar Senha', 'Cadastro']
+                  then null
+                when regexp_contains(des_pagina_url, r'^/(\?.*)?$') = true
+                  then 1
+                when regexp_contains(des_pagina_url, r'^/(busca.*|nav.*|hotsite.*|snkrs$|snkrs/calendario$|snkrs/estoque$|sc.*)') = true
+                  then 2
+                when regexp_contains(des_pagina_url, r'.*\.html.*') = true
+                  then 3
+                when regexp_contains(des_pagina_url, r'^/carrinho$') = true
+                  then 5
+                when regexp_contains(des_pagina_url, r'^/checkout$') = true
+                  then 7
+                when regexp_contains(des_pagina_url, r'^/checkout/pagamento$') = true
+                  then 8
+                when regexp_contains(des_pagina_url, r'^/checkout/confirmacao.*') = true
+                  then 9
+                else 0
+              end as num_etapa_atual_funil
+          from tb_sessao_tratada
+        )
+        , etapa_tipo_event as (
+          select distinct --tirando o efeito de repeticao de cada etapa
+              dat_navegacao
+            , des_categoria_dispositivo
+            , des_canal_marketing
+            , des_fornecedor_marketing
+            , cod_sessao
+            , cast(null as string) as cod_sessao_page
+            , case
+                when regexp_contains(lower(des_acao_evento), r'.*(sidebar.*cart|adicionar.*carrinho).*') = true
+                    or regexp_contains(lower(des_categoria_evento), r'.*(adicionar.*carrinho|addtocart).*') = true
+                  then 'Carrinho Lateral'
+                when regexp_contains(lower(des_categoria_evento), r'^ui - login$') = true -- in ('ui - login', 'ui - complete seu cadastro')
+                      and regexp_contains(lower(des_acao_evento), r'.*login.*') --['Login', 'Recuperar Senha', 'Cadastro']
+                  then 'Identificação'
+                /*when regexp_contains(des_pagina_url, r'^/(\?.*)?$') = true
+                  then 'Home'
+                when regexp_contains(des_pagina_url, r'^/(busca.*|nav.*|hotsite.*|snkrs$|snkrs/calendario$|snkrs/estoque$|sc.*)') = true
+                  then 'Vitrine'
+                when regexp_contains(des_pagina_url, r'.*\.html.*') = true
+                  then 'PDP'
+                when regexp_contains(des_pagina_url, r'^/carrinho$') = true
+                  then 'Carrinho'
+                when regexp_contains(des_pagina_url, r'^/checkout$') = true
+                  then 'Entrega'
+                when regexp_contains(des_pagina_url, r'^/checkout/pagamento$') = true
+                  then 'Pagamento'
+                when regexp_contains(des_pagina_url, r'^/checkout/confirmacao.*') = true
+                  then 'Confirmação'*/
+                else null
+              end as nom_etapa_atual_funil
+            , case
+                when regexp_contains(lower(des_acao_evento), r'.*(sidebar.*cart|adicionar.*carrinho).*') = true
+                    or regexp_contains(lower(des_categoria_evento), r'.*(adicionar.*carrinho|addtocart).*') = true
+                  then 4
+                when regexp_contains(lower(des_categoria_evento), r'^ui - login$') = true -- in ('ui - login', 'ui - complete seu cadastro')
+                      and regexp_contains(lower(des_acao_evento), r'.*login.*') --['Login', 'Recuperar Senha', 'Cadastro']
+                  then 6
+                /*when regexp_contains(des_pagina_url, r'^/(\?.*)?$') = true
+                  then 1
+                when regexp_contains(des_pagina_url, r'^/(busca.*|nav.*|hotsite.*|snkrs$|snkrs/calendario$|snkrs/estoque$|sc.*)') = true
+                  then 2
+                when regexp_contains(des_pagina_url, r'.*\.html.*') = true
+                  then 3
+                when regexp_contains(des_pagina_url, r'^/carrinho$') = true
+                  then 5
+                when regexp_contains(des_pagina_url, r'^/checkout$') = true
+                  then 7
+                when regexp_contains(des_pagina_url, r'^/checkout/pagamento$') = true
+                  then 8
+                when regexp_contains(des_pagina_url, r'^/checkout/confirmacao.*') = true
+                  then 9*/
+                else null
+              end as num_etapa_atual_funil
+          from tb_sessao_tratada
+          where des_tipo_hit = 'EVENT'
+        )
+        , etapa_funil_final as (
+          select distinct
+                etp.dat_navegacao
+              , etp.des_categoria_dispositivo
+              , etp.des_canal_marketing
+              , etp.des_fornecedor_marketing
+              , coalesce(etp.num_etapa_atual_funil, ete.num_etapa_atual_funil) as num_etapa_atual_funil
+              , coalesce(etp.nom_etapa_atual_funil, ete.nom_etapa_atual_funil) as nom_etapa_atual_funil
+              , max(coalesce(etp.num_etapa_atual_funil, ete.num_etapa_atual_funil)) over (partition by etp.dat_navegacao, etp.cod_sessao) as num_maior_etapa_funil
+              , coalesce(etp.cod_sessao, ete.cod_sessao) as cod_sessao
+              , coalesce(etp.cod_sessao_page, ete.cod_sessao_page) as cod_sessao_page
+          from etapa_tipo_page etp
+          left join etapa_tipo_event ete
+            on etp.dat_navegacao = ete.dat_navegacao
+            and etp.des_categoria_dispositivo = ete.des_categoria_dispositivo
+            and etp.des_canal_marketing = ete.des_canal_marketing
+            and etp.des_fornecedor_marketing = ete.des_fornecedor_marketing
+            and etp.cod_sessao = ete.cod_sessao
+          where coalesce(etp.num_etapa_atual_funil, ete.num_etapa_atual_funil) is not null
+        )
+        , tb_pedido_item as (
+          select
+              dat_navegacao
+            , hor_hit_ms
+            , des_categoria_dispositivo
+            , des_canal_marketing
+            , des_fornecedor_marketing
+            , cod_sessao
+            , cod_pedido
+            , cod_produto
+            , sum(qtd_item) as qtd_item
+            , sum(vlr_total_produto) as vlr_total_produto
+            , max(vlr_frete) as vlr_frete
+            , max(vlr_total_pedido) as vlr_total_pedido
+          from tb_sessao_tratada
+          where cod_pedido is not null
+          and flg_interacao = 1
+          group by 1, 2, 3, 4, 5, 6, 7, 8
+        )
+        , tb_pedido_ga as (
+          select
+              *
+            , rank() over (partition by cod_pedido order by dat_navegacao, hor_hit_ms) as rnk
+          from(
+            select
+                dat_navegacao
+              , hor_hit_ms
+              , des_categoria_dispositivo
+              , des_canal_marketing
+              , des_fornecedor_marketing
+              , cod_sessao
+              , cod_pedido
+              , count(distinct cod_produto) as qtd_produtos
+              , sum(qtd_item) as qtd_item
+              , sum(vlr_total_produto) as vlr_captado
+              , max(vlr_frete) as vlr_frete
+              , max(vlr_total_pedido) as vlr_total_pedido
+            from tb_pedido_item
+            group by 1, 2, 3, 4, 5, 6, 7
+          )
+        )
+        , tb_pedido_scooby as (
+          select
+              dat_criacao_pedido
+            , cod_pedido
+            , sum(qtd_produto) as qtd_itens
+            , sum(vlr_total_produto) as vlr_total
+          from `{PROJECT}.{CAMADA}.fis_ref_gld_fat_vendas`
+          where dat_criacao_pedido between DATE_TRUNC(CURRENT_DATE(), MONTH) and DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
+          and flg_origem = 'SCOOBY'
+          and flg_captado = 'SIM'
+          and COD_CANAL IN ('NIKE.COM', 'FISIA - E-COMM', 'LOJA OFICIAL', 'SITE MOBILE')
+          group by 1,2
+        )
+        , tb_pedido_total as (
+          select
+              ps.dat_criacao_pedido
+            , coalesce(pg.cod_sessao, '-1') as cod_sessao
+            , coalesce(pg.des_categoria_dispositivo, 'NAO IDENTIFICADO') as des_categoria_dispositivo
+            , coalesce(pg.des_canal_marketing, 'NAO IDENTIFICADO') as des_canal_marketing
+            , coalesce(pg.des_fornecedor_marketing, 'NAO IDENTIFICADO') as des_fornecedor_marketing
+            , ps.cod_pedido
+            , sum(ps.qtd_itens) as qtd_itens
+            , sum(ps.vlr_total) as vlr_total_captado
+          from tb_pedido_scooby ps
+          left join tb_pedido_ga pg
+            on ps.cod_pedido = pg.cod_pedido
+            and ps.dat_criacao_pedido = pg.dat_navegacao
+          where pg.rnk = 1
+          or pg.cod_pedido is null
+          group by 1, 2, 3, 4, 5, 6
+        )
+        , tb_final as (
+          select
+              coalesce(eff.dat_navegacao, pt.dat_criacao_pedido) as dat_navegacao
+            , upper(coalesce(eff.des_categoria_dispositivo, pt.des_categoria_dispositivo)) as des_categoria_dispositivo
+            , upper(coalesce(eff.des_canal_marketing, pt.des_canal_marketing)) as des_canal_marketing
+            , upper(coalesce(eff.des_fornecedor_marketing, pt.des_fornecedor_marketing)) as des_fornecedor_marketing
+            , coalesce(eff.num_etapa_atual_funil, -1) as num_etapa_atual_funil
+            , upper(coalesce(eff.nom_etapa_atual_funil, 'NAO IDENTIFICADO')) as nom_etapa_atual_funil
+            , count(distinct eff.cod_sessao) as qtd_sessoes
+            , count(distinct if(eff.num_maior_etapa_funil = 9 or eff.num_maior_etapa_funil > eff.num_etapa_atual_funil, eff.cod_sessao, null)) as qtd_sessoes_converteu_etapa
+            , count(distinct eff.cod_sessao_page) as qtd_visualizacoes_unicas
+            , count(distinct if(eff.num_maior_etapa_funil = 9 or eff.num_maior_etapa_funil > eff.num_etapa_atual_funil, eff.cod_sessao_page, null)) as qtd_visualizacoes_unicas_converteu_etapa
+            , count(distinct pt.cod_pedido) as qtd_pedidos
+            , sum(coalesce(pt.qtd_itens, 0)) as qtd_itens
+            , sum(coalesce(pt.vlr_total_captado, 0)) as vlr_captado
+          from etapa_funil_final eff
+          full outer join tb_pedido_total pt
+            on eff.dat_navegacao = pt.dat_criacao_pedido
+            and eff.des_categoria_dispositivo = pt.des_categoria_dispositivo
+            and eff.des_canal_marketing = pt.des_canal_marketing
+            and eff.des_fornecedor_marketing = pt.des_fornecedor_marketing
+            and eff.cod_sessao = pt.cod_sessao
+            and ((eff.num_etapa_atual_funil not in (4,6) and eff.cod_sessao_page is not null)
+                  or (eff.num_etapa_atual_funil in (4,6) and eff.cod_sessao_page is null))
+        group by 1, 2, 3, 4, 5, 6
+        )
+        select *
+        from tb_final
+      ) t_ga
+        on f_ga.dat_navegacao = t_ga.dat_navegacao
+        and f_ga.des_categoria_dispositivo = t_ga.des_categoria_dispositivo
+        and f_ga.des_canal_marketing = t_ga.des_canal_marketing
+        and f_ga.des_fornecedor_marketing = t_ga.des_fornecedor_marketing
+        and f_ga.num_etapa_atual_funil = t_ga.num_etapa_atual_funil
+        and f_ga.nom_etapa_atual_funil = t_ga.nom_etapa_atual_funil
+      WHEN MATCHED and (f_ga.qtd_sessoes <> t_ga.qtd_sessoes
+                        or f_ga.qtd_sessoes_converteu_etapa <> t_ga.qtd_sessoes_converteu_etapa
+                        or f_ga.qtd_visualizacoes_unicas <> t_ga.qtd_visualizacoes_unicas
+                        or f_ga.qtd_visualizacoes_unicas_converteu_etapa <> t_ga.qtd_visualizacoes_unicas_converteu_etapa
+                        or f_ga.qtd_pedidos <> t_ga.qtd_pedidos
+                        or f_ga.qtd_itens <> t_ga.qtd_itens
+                        or f_ga.vlr_captado <> t_ga.vlr_captado)
+        THEN UPDATE SET
+            f_ga.qtd_sessoes = t_ga.qtd_sessoes
+          , f_ga.qtd_sessoes_converteu_etapa = t_ga.qtd_sessoes_converteu_etapa
+          , f_ga.qtd_visualizacoes_unicas = t_ga.qtd_visualizacoes_unicas
+          , f_ga.qtd_visualizacoes_unicas_converteu_etapa = t_ga.qtd_visualizacoes_unicas_converteu_etapa
+          , f_ga.qtd_pedidos = t_ga.qtd_pedidos
+          , f_ga.qtd_itens = t_ga.qtd_itens
+          , f_ga.vlr_captado = t_ga.vlr_captado
+      WHEN NOT MATCHED
+        THEN INSERT (dat_navegacao, des_categoria_dispositivo, des_canal_marketing, des_fornecedor_marketing, num_etapa_atual_funil, nom_etapa_atual_funil, qtd_sessoes, qtd_sessoes_converteu_etapa, qtd_visualizacoes_unicas, qtd_visualizacoes_unicas_converteu_etapa, qtd_pedidos, qtd_itens, vlr_captado)
+        VALUES (t_ga.dat_navegacao, t_ga.des_categoria_dispositivo, t_ga.des_canal_marketing, t_ga.des_fornecedor_marketing, t_ga.num_etapa_atual_funil, t_ga.nom_etapa_atual_funil, t_ga.qtd_sessoes, t_ga.qtd_sessoes_converteu_etapa, t_ga.qtd_visualizacoes_unicas, t_ga.qtd_visualizacoes_unicas_converteu_etapa, t_ga.qtd_pedidos, t_ga.qtd_itens, t_ga.vlr_captado)
+  ACTIVE: "1"

@@ -1,0 +1,48 @@
+- SQL: |
+      truncate table {PROJECT}.{CAMADA}.fis_ref_gld_dim_classificacao_nota_nps;
+      insert into  {PROJECT}.{CAMADA}.fis_ref_gld_dim_classificacao_nota_nps
+      -- nome da tabela: fis_ref_gld_dim_classificacao_nota_nps
+      select
+          0 as num_nota_nps
+        , 'DETRATOR' as des_classificacao_nps
+      union all
+      select
+          1 as num_nota_nps
+        , 'DETRATOR' as des_classificacao_nps
+      union all
+      select
+          2 as num_nota_nps
+        , 'DETRATOR' as des_classificacao_nps
+      union all
+      select
+          3 as num_nota_nps
+        , 'DETRATOR' as des_classificacao_nps
+      union all
+      select
+          4 as num_nota_nps
+        , 'DETRATOR' as des_classificacao_nps
+      union all
+      select
+          5 as num_nota_nps
+        , 'DETRATOR' as des_classificacao_nps
+      union all
+      select
+          6 as num_nota_nps
+        , 'DETRATOR' as des_classificacao_nps
+      union all
+      select
+          7 as num_nota_nps
+        , 'NEUTRO' as des_classificacao_nps
+      union all
+      select
+          8 as num_nota_nps
+        , 'NEUTRO' as des_classificacao_nps
+      union all
+      select
+          9 as num_nota_nps
+        , 'PROMOTOR' as des_classificacao_nps
+      union all
+      select
+          10 as num_nota_nps
+        , 'PROMOTOR' as des_classificacao_nps
+  ACTIVE: "1"

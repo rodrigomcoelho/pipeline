@@ -1,0 +1,333 @@
+- SQL: |
+      MERGE INTO `{PROJECT}.{CAMADA}.fis_ref_gld_fat_navegacao_ga_agregada` f_ga
+      USING (
+        with tb_sessao_tratada as ( -- Nessa temporaria realizamos os tratamentos necessarios para conseguirmos acessar apenas os dados necessarios e tambem realizamos a padronizacao nos nomes dos campos
+            select
+                cast(parse_date('%Y%m%d',date) as date) as dat_navegacao -- Transformando o campo "date" do tipo string no tipo data
+              , case
+                  when regexp_contains(lower(trafficSource.source), r'.*(awin|rakuten|zanox|lomadee).*')
+                      then 'AFILIADOS'
+                  when regexp_contains(lower(trafficSource.source), r'.*(zoom|buscape).*')
+                      then 'COMPARADORES'
+                  when regexp_contains(lower(trafficSource.source), r'.*(email_transacional|email_campaign|email_mkt_externo|campanhas|salescycle|socialminer|crm|transacionais).*')
+                      then 'CRM'
+                  when regexp_contains(lower(trafficSource.source), r'.*facebook.*')
+                      then 'PAID SOCIAL'
+                  when regexp_contains(lower(trafficSource.source), r'.*(googlepatrocinado|gp_pla|yahoo_patrocinado|yahoopatrocinado|gp_search|googleshop|googleads.g.doubleclick.net|googleadservices.com|cse.google.com|safeframe.googlesyndication.com).*')
+                    or (regexp_contains(lower(trafficSource.source), '.*google.*') and regexp_contains(lower(trafficSource.medium), '.*cpc.*'))
+                    or lower(channelGrouping) = 'paid search'
+                      then 'PAID SEARCH'
+                  when regexp_contains(lower(trafficSource.source), r'.*(criteo|blue|rtbhouse).*')
+                      then 'RETARGETING'
+                  when regexp_contains(lower(trafficSource.source), r'.*brand.*')
+                      then 'BRAND'
+                  when regexp_contains(lower(trafficSource.source)||' / '||lower(trafficSource.medium), r'.*direct.*none.*')
+                      or regexp_contains(lower(trafficSource.source)||' / '||lower(trafficSource.medium), r'.*not set.*not set.*')
+                      or regexp_contains(lower(trafficSource.source), r'.*nike\.(com|neemu).*')
+                      or lower(channelGrouping) = 'direct'
+                      then 'DIRETO'
+                  when regexp_contains(lower(trafficSource.medium), r'.*organic.*')
+                    or lower(channelGrouping) = 'organic search'
+                      then 'SEO'
+                  when lower(channelGrouping) = 'referral'
+                      then 'REFERRAL'
+                  when lower(channelGrouping) = 'social'
+                      then 'SOCIAL'
+                  else 'OUTROS'
+                end as des_canal_marketing
+              , case
+                  when regexp_contains(lower(trafficSource.medium), r'.*organic.*')
+                      then 'SEO'
+                  when regexp_contains(lower(trafficSource.source)||' / '||lower(trafficSource.medium), r'.*direct.*none.*')
+                      or regexp_contains(lower(trafficSource.source)||' / '||lower(trafficSource.medium), r'.*not set.*not set.*')
+                      or regexp_contains(lower(trafficSource.source), r'.*nike\.(com|neemu).*')
+                      then 'DIRETO'
+                  when regexp_contains(lower(trafficSource.source), r'.*gp_search.*')
+                      then 'Google Search'
+                  when regexp_contains(lower(trafficSource.source), r'.*googleshop.*')
+                      then 'Google Shopping'
+                  when regexp_contains(lower(trafficSource.source), r'.*criteo.*')
+                      and regexp_contains(lower(trafficSource.medium), r'.*retargeting.*')
+                      then 'Criteo'
+                  when regexp_contains(lower(trafficSource.source), r'.*blue.*')
+                      and regexp_contains(lower(trafficSource.medium), r'.*cpa.*')
+                      then 'GetBlue'
+                  when regexp_contains(lower(trafficSource.source), r'.*rtbhouse.*')
+                      and regexp_contains(lower(trafficSource.medium), r'.*retargeting.*')
+                      then 'RTB House'
+                  when regexp_contains(lower(trafficSource.source), r'.*zoom.*')
+                      then 'Zoom'
+                  when regexp_contains(lower(trafficSource.source), r'.*yahoopatrocinado.*')
+                      then 'Bing'
+                  when regexp_contains(lower(trafficSource.source), r'.*facebook.*')
+                      and regexp_contains(lower(trafficSource.medium), r'.*cpc.*')
+                      then 'Facebook'
+                  when regexp_contains(lower(trafficSource.source), r'.*rakuten.*')
+                      then 'Rakuten'
+                  when regexp_contains(lower(trafficSource.source), r'.*(zanox|awin).*')
+                      then 'Zanox'
+                  when regexp_contains(lower(trafficSource.source), r'.*lomadee.*')
+                      then 'Lomadee'
+                  when regexp_contains(lower(trafficSource.source), r'.*email_mkt_externo.*')
+                      then 'SalesCycle'
+                  when regexp_contains(lower(trafficSource.source), r'.*socialminer.*')
+                      then 'SocialMiner'
+                  when regexp_contains(lower(trafficSource.source), r'.*(email_transacional|rgs_transacional).*')
+                      then 'Transacionais'
+                  when regexp_contains(lower(trafficSource.source), r'.*crm.*')
+                      and regexp_contains(lower(trafficSource.medium), r'.*behavior.*')
+                      then 'Behavior'
+                  when regexp_contains(lower(trafficSource.source), r'.*crm.*')
+                      and regexp_contains(lower(trafficSource.medium), r'.*news.*')
+                      then 'News'
+                  when regexp_contains(lower(trafficSource.source), r'.*crm.*')
+                      and regexp_contains(lower(trafficSource.medium), r'.*rgs.*')
+                      then 'Jornada'
+                  else 'OUTROS'
+                end as des_fornecedor_marketing
+              , upper(h.type) as des_tipo_hit
+              , if(h.isInteraction = true, 1, 0) as flg_hit_com_interacao
+              , h.time as hor_hit_ms -- Tempo decorrido desdo inicio da sessao ate o momento do disparo do hit
+              , if(h.isExit = true, 1, 0) as flg_ultimo_hit -- Padronizando o valor null para 0 e o True para 1. Indica se o hit foi a ultima pagina/tela visualizada
+              , upper(device.deviceCategory) as des_categoria_dispositivo
+              , fullvisitorid as cod_usuario
+              , coalesce(totals.newvisits, 0) as flg_usuario_novo -- Utilizamos o coalesce pois o campo vem 1 ou null
+              , fullVisitorId||CAST(visitId AS STRING) as cod_sessao -- Concatenando os campos que formam a sessao no mesmo formato que eh utilizada no GA
+              , coalesce(totals.visits, 0) as flg_interacao -- Utilizamos o coalesce pois o campo vem 1 ou null
+              , coalesce(totals.bounces, 0) as flg_rejeicao -- Utilizamos o coalesce pois o campo vem 1 ou null
+              , cast(fullvisitorid as string)||' - '||cast(visitId  as string)||' - '||coalesce(h.page.pagepath, 'sem path')||' - '||coalesce(h.page.pagetitle, 'sem title') as des_pag_visualizada -- Concatetando os campos necessarios que sao utilizados para identificar o acesso em uma pagina
+              , trim(lower(h.page.pagePath)) as des_pagina_url
+              , lower(h.eventInfo.eventCategory) as des_categoria_evento
+              , h.eventInfo.eventAction as des_acao_evento
+              , h.transaction.transactionid as cod_pedido
+              , p.productSKU as cod_produto
+              , if(h.item.productname is not null, h.item.itemquantity,if(h.eCommerceAction.action_type = "6", p.productQuantity,0)) as qtd_item --parece que essa metrica nao esta configurada corretamente no GA, entao tento primeiro pegar da maneira correta, se nao tiver dados, pego da segunda maneira de forma paliativa
+              , coalesce(p.productRevenue,0)/1000000 as vlr_total_produto
+              , coalesce(h.transaction.transactionrevenue,0)/1000000 as vlr_total_pedido
+              , coalesce(h.transaction.transactionshipping,0)/1000000 as vlr_frete
+            from `fisia-data-lake.241894112.ga_sessions_*`
+            left join unnest(hits) h
+            left join unnest(h.product) p
+            where totals.visits = 1
+            and _table_suffix between FORMAT_DATE('%Y%m%d',DATE_TRUNC(CURRENT_DATE(), MONTH)) and FORMAT_DATE('%Y%m%d',DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)) -- Utilizamos a pseudocoluna "_table_suffix" para filtrarmos o periodo que queremos utilizar
+            )
+            , metricas_com_interacoes as ( -- Nessa temporaria, utilizamos os dados ja tratados da temporaria tb_sessao_tratada e realizamos os calculos das metricas que levam em conta apenas as sessoes que interagiram com o site
+            select
+                  dat_navegacao
+                , des_categoria_dispositivo
+                , des_canal_marketing
+                , des_fornecedor_marketing
+                , count(distinct cod_sessao) as qtd_sessoes
+                , count(distinct case when flg_rejeicao = 1 then cod_sessao end) as qtd_sessoes_rejeicao
+                , count(case when des_tipo_hit = 'PAGE' then des_pag_visualizada end) as qtd_visualizacao_pagina -- Para as metricas de visualizacao de pagina, precisamos apenas dos dados que foram disparados por conta de uma interacao do tipo PAGE
+                , count(distinct case when des_tipo_hit = 'PAGE' then des_pag_visualizada end) as qtd_visualizacao_pagina_unica -- Para as metricas de visualizacao de pagina, precisamos apenas dos dados que foram disparados por conta de uma interacao do tipo PAGE
+              from tb_sessao_tratada
+              where flg_interacao = 1 --filtrando apenas os dados das sessoes que interagiram com o site
+              group by 1, 2, 3, 4
+            )
+            , metricas_sem_filtro_interacoes as ( -- Nessa temporaria, utilizamos os dados ja tratados da temporaria tb_sessao_tratada e realizamos os calculos das metricas que nao levam em conta se a sessao interagiu ou nao com o site
+              select
+                  dat_navegacao
+                , des_categoria_dispositivo
+                , des_canal_marketing
+                , des_fornecedor_marketing
+                , qtd_usuarios
+                , qtd_usuarios_novos
+                , (qtd_usuarios - qtd_usuarios_novos)  as qtd_usuarios_retornantes
+              from(
+                select
+                    dat_navegacao
+                  , des_categoria_dispositivo
+                  , des_canal_marketing
+                  , des_fornecedor_marketing
+                  , count(distinct cod_usuario) as qtd_usuarios
+                  , count(distinct(case when flg_usuario_novo = 1 then cod_usuario end)) as qtd_usuarios_novos
+                from tb_sessao_tratada
+                group by 1, 2, 3, 4
+              )
+            )
+            , metricas_tempo_medio_visualizacoes_de_pagina as (
+              select
+                  dat_navegacao
+                , des_categoria_dispositivo
+                , des_canal_marketing
+                , des_fornecedor_marketing
+                , sum(hor_hit_seguinte_ms) as hor_hit_seguinte_ms
+                , sum(hor_hit_ms) as hor_hit_ms
+                , SUM(hor_hit_seguinte_ms-hor_hit_ms)/1000 as hor_tempo_total_pagina_s
+                , COUNTIF(des_tipo_hit = "PAGE" AND flg_ultimo_hit = 0) as qtd_visualizacoes_sem_saida
+              from(
+                select
+                    dat_navegacao
+                  , des_categoria_dispositivo
+                  , des_canal_marketing
+                  , des_fornecedor_marketing
+                  , cod_sessao
+                  , des_tipo_hit
+                  , des_pagina_url
+                  , flg_ultimo_hit
+                  , hor_hit_ms
+                  , hor_ultima_interacao_ms
+                  , lead(hor_hit_ms) over (partition by cod_sessao order by hor_hit_ms) as hor_hit_seguinte_ms
+                from(
+                  select
+                      dat_navegacao
+                    , des_categoria_dispositivo
+                    , des_canal_marketing
+                    , des_fornecedor_marketing
+                    , cod_sessao
+                    , des_tipo_hit
+                    , des_pagina_url
+                    , flg_ultimo_hit
+                    , hor_hit_ms
+                    , last_value(hor_hit_ms) over (partition by cod_sessao order by hor_hit_ms) AS hor_ultima_interacao_ms
+                  from tb_sessao_tratada
+                  where des_tipo_hit = 'PAGE'
+                  or flg_hit_com_interacao = 1
+                )
+                where des_tipo_hit = 'PAGE'
+                or hor_hit_ms = hor_ultima_interacao_ms
+              )
+              group by 1, 2, 3, 4
+            )
+            , tb_pedido_item as (
+              select
+                  dat_navegacao
+                , hor_hit_ms
+                , des_categoria_dispositivo
+                , des_canal_marketing
+                , des_fornecedor_marketing
+                , cod_pedido
+                , cod_produto
+                , sum(qtd_item) as qtd_item
+                , sum(vlr_total_produto) as vlr_total_produto
+                , max(vlr_frete) as vlr_frete
+                , max(vlr_total_pedido) as vlr_total_pedido
+              from tb_sessao_tratada
+              where cod_pedido is not null
+              and flg_interacao = 1
+              group by 1, 2, 3, 4, 5, 6, 7
+            )
+            , tb_pedido_ga as (
+              select
+                  *
+                , rank() over (partition by cod_pedido order by dat_navegacao, hor_hit_ms) as rnk
+              from(
+                select
+                    dat_navegacao
+                  , hor_hit_ms
+                  , des_categoria_dispositivo
+                  , des_canal_marketing
+                  , des_fornecedor_marketing
+                  , cod_pedido
+                  , count(distinct cod_produto) as qtd_produtos
+                  , sum(qtd_item) as qtd_item
+                  , sum(vlr_total_produto) as vlr_captado
+                  , max(vlr_frete) as vlr_frete
+                  , max(vlr_total_pedido) as vlr_total_pedido
+                from tb_pedido_item
+                group by 1, 2, 3, 4, 5, 6
+              )
+            )
+            , tb_pedido_scooby as (
+              select
+                  dat_criacao_pedido
+                , cod_pedido
+                , sum(qtd_produto) as qtd_itens
+                , sum(vlr_total_produto) as vlr_total
+              from `{PROJECT}.{CAMADA}.fis_ref_gld_fat_vendas`
+              where dat_criacao_pedido between DATE_TRUNC(CURRENT_DATE(), MONTH) and DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
+              and flg_origem = 'SCOOBY'
+              and flg_captado = 'SIM'
+              and COD_CANAL = 'NIKE.COM'
+              group by 1, 2
+            )
+            , tb_pedido_total as (
+              select
+                  ps.dat_criacao_pedido
+                , coalesce(pg.des_categoria_dispositivo, 'NAO IDENTIFICADO') as des_categoria_dispositivo
+                , coalesce(pg.des_canal_marketing, 'NAO IDENTIFICADO') as des_canal_marketing
+                , coalesce(pg.des_fornecedor_marketing, 'NAO IDENTIFICADO') as des_fornecedor_marketing
+                , count(ps.cod_pedido) as qtd_pedidos
+                , sum(ps.qtd_itens) as qtd_itens
+                , sum(ps.vlr_total) as vlr_total_captado
+              from tb_pedido_scooby ps
+              left join tb_pedido_ga pg
+                on ps.cod_pedido = pg.cod_pedido
+                and ps.dat_criacao_pedido = pg.dat_navegacao
+              where pg.rnk = 1
+              or pg.cod_pedido is null
+              group by 1, 2, 3, 4
+            )
+            , tb_final as (
+              select
+                  coalesce(msf.dat_navegacao, pt.dat_criacao_pedido) as dat_navegacao
+                , coalesce(msf.des_categoria_dispositivo, pt.des_categoria_dispositivo) as des_categoria_dispositivo
+                , coalesce(msf.des_canal_marketing, pt.des_canal_marketing) as des_canal_marketing
+                , coalesce(msf.des_fornecedor_marketing, pt.des_fornecedor_marketing) as des_fornecedor_marketing
+                , coalesce(msf.qtd_usuarios, 0) as qtd_usuarios
+                , coalesce(msf.qtd_usuarios_novos, 0) as qtd_usuarios_novos
+                , coalesce(msf.qtd_usuarios_retornantes, 0) as qtd_usuarios_retornantes
+                , coalesce(mci.qtd_sessoes, 0) as qtd_sessoes
+                , coalesce(mci.qtd_sessoes_rejeicao, 0) as qtd_sessoes_rejeicao
+                , coalesce(mci.qtd_visualizacao_pagina, 0) as qtd_visualizacao_pagina
+                , coalesce(mci.qtd_visualizacao_pagina_unica, 0) as qtd_visualizacao_pagina_unica
+                , coalesce(mtmv.hor_tempo_total_pagina_s, 0) as hor_tempo_total_pagina_segundos
+                , coalesce(mtmv.qtd_visualizacoes_sem_saida, 0) as qtd_visualizacoes_sem_saida
+                , coalesce(pt.qtd_pedidos, 0) as qtd_pedidos
+                , coalesce(pt.qtd_itens, 0) as qtd_itens
+                , round(coalesce(pt.vlr_total_captado, 0), 2) as vlr_captado
+                --, round(coalesce(pt.vlr_frete, 0), 2) as vlr_frete
+              from metricas_sem_filtro_interacoes msf
+              left join metricas_com_interacoes  mci
+                on msf.dat_navegacao = mci.dat_navegacao
+                and msf.des_categoria_dispositivo = mci.des_categoria_dispositivo
+                and msf.des_canal_marketing = mci.des_canal_marketing
+                and msf.des_fornecedor_marketing = mci.des_fornecedor_marketing
+              left join metricas_tempo_medio_visualizacoes_de_pagina mtmv
+                on msf.dat_navegacao = mtmv.dat_navegacao
+                and msf.des_categoria_dispositivo = mtmv.des_categoria_dispositivo
+                and msf.des_canal_marketing = mtmv.des_canal_marketing
+                and msf.des_fornecedor_marketing = mtmv.des_fornecedor_marketing
+              full outer join tb_pedido_total  pt
+                on msf.dat_navegacao = pt.dat_criacao_pedido
+                and msf.des_categoria_dispositivo = pt.des_categoria_dispositivo
+                and msf.des_canal_marketing = pt.des_canal_marketing
+                and msf.des_fornecedor_marketing = pt.des_fornecedor_marketing
+            )
+            select *
+            from tb_final
+      ) t_ga
+        on f_ga.dat_navegacao = t_ga.dat_navegacao
+        and f_ga.des_categoria_dispositivo = t_ga.des_categoria_dispositivo
+        and f_ga.des_canal_marketing = t_ga.des_canal_marketing
+        and f_ga.des_fornecedor_marketing = t_ga.des_fornecedor_marketing
+      WHEN MATCHED and (f_ga.qtd_usuarios <> t_ga.qtd_usuarios
+                        or f_ga.qtd_usuarios_novos <> t_ga.qtd_usuarios_novos
+                        or f_ga.qtd_usuarios_retornantes <> t_ga.qtd_usuarios_retornantes
+                        or f_ga.qtd_sessoes <> t_ga.qtd_sessoes
+                        or f_ga.qtd_sessoes_rejeicao <> t_ga.qtd_sessoes_rejeicao
+                        or f_ga.qtd_visualizacao_pagina <> t_ga.qtd_visualizacao_pagina
+                        or f_ga.qtd_visualizacao_pagina_unica <> t_ga.qtd_visualizacao_pagina_unica
+                        or f_ga.hor_tempo_total_pagina_segundos <> t_ga.hor_tempo_total_pagina_segundos
+                        or f_ga.qtd_visualizacoes_sem_saida <> t_ga.qtd_visualizacoes_sem_saida
+                        or f_ga.qtd_pedidos <> t_ga.qtd_pedidos
+                        or f_ga.qtd_itens <> t_ga.qtd_itens
+                        or f_ga.vlr_captado <> t_ga.vlr_captado)
+      THEN UPDATE SET
+          f_ga.qtd_usuarios = t_ga.qtd_usuarios
+        , f_ga.qtd_usuarios_novos = t_ga.qtd_usuarios_novos
+        , f_ga.qtd_usuarios_retornantes = t_ga.qtd_usuarios_retornantes
+        , f_ga.qtd_sessoes = t_ga.qtd_sessoes
+        , f_ga.qtd_sessoes_rejeicao = t_ga.qtd_sessoes_rejeicao
+        , f_ga.qtd_visualizacao_pagina = t_ga.qtd_visualizacao_pagina
+        , f_ga.qtd_visualizacao_pagina_unica = t_ga.qtd_visualizacao_pagina_unica
+        , f_ga.hor_tempo_total_pagina_segundos = t_ga.hor_tempo_total_pagina_segundos
+        , f_ga.qtd_visualizacoes_sem_saida = t_ga.qtd_visualizacoes_sem_saida
+        , f_ga.qtd_pedidos = t_ga.qtd_pedidos
+        , f_ga.qtd_itens = t_ga.qtd_itens
+        , f_ga.vlr_captado = t_ga.vlr_captado
+      WHEN NOT MATCHED
+        THEN INSERT (dat_navegacao, des_categoria_dispositivo, des_canal_marketing, des_fornecedor_marketing, qtd_usuarios, qtd_usuarios_novos, qtd_usuarios_retornantes, qtd_sessoes, qtd_sessoes_rejeicao, qtd_visualizacao_pagina, qtd_visualizacao_pagina_unica, hor_tempo_total_pagina_segundos, qtd_visualizacoes_sem_saida, qtd_pedidos, qtd_itens, vlr_captado)
+        VALUES (t_ga.dat_navegacao, t_ga.des_categoria_dispositivo, t_ga.des_canal_marketing, t_ga.des_fornecedor_marketing, t_ga.qtd_usuarios, t_ga.qtd_usuarios_novos, t_ga.qtd_usuarios_retornantes, t_ga.qtd_sessoes, t_ga.qtd_sessoes_rejeicao, t_ga.qtd_visualizacao_pagina, t_ga.qtd_visualizacao_pagina_unica, t_ga.hor_tempo_total_pagina_segundos, t_ga.qtd_visualizacoes_sem_saida, t_ga.qtd_pedidos, t_ga.qtd_itens, t_ga.vlr_captado)
+  ACTIVE: "1"

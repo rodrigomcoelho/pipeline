@@ -22,6 +22,14 @@ jobs:
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
       BUCKET_PATH: ${{ secrets.DEV_AIRFLOW_BUCKET }}/
 
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - path: dags/fisia/
+            extension: \.py\|\.yaml
+          - path: plugins/fisia/
+            extension: \.py
     steps:
       # copying files to machine
       - name: Checkout
@@ -30,10 +38,10 @@ jobs:
           fetch-depth: 0
 
       # check file changes
-      - name: Check file changes
+      - name: Check file changes at ${{ matrix.path }}
         id: changed-files
         run: |
-          ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '${{ env.EXTENSIONS }}' | sed -e ':a; N; $!ba; s/\n/ /g')
+          ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '^${{ matrix.path }}' | grep '${{ matrix.extension }}' | sed -e ':a; N; $!ba; s/\n/ /g')
 
           if [ -z $ALL_CHANGED_FILES]
           then
@@ -43,12 +51,12 @@ jobs:
           fi
 
           echo "ANY_CHANGE=true" >> $GITHUB_OUTPUT
-          echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=ACM | sort | grep '${{ env.EXTENSIONS }}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
-          echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=RD | sort | grep '${{ env.EXTENSIONS }}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
+          echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=ACM | sort | grep '^${{ matrix.path }}' | grep '${{ matrix.extension}}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
+          echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=RD | sort | grep '^${{ matrix.path }}' | grep '${{ matrix.extension}}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
 
 
       # listing changed files
-      - name: List all changed files
+      - name: List all changed files at ${{ matrix.path }}
         if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
           for file in ${{ steps.changed-files.outputs.DELETED_FILES }}; do
@@ -59,7 +67,7 @@ jobs:
           done
 
       # submit argo job for deploying
-      - name: Applying changes to composer
+      - name: Applying changes to composer at ${{ matrix.path }}
         if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
 

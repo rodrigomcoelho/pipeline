@@ -1,0 +1,135 @@
+- SQL: |
+      MERGE INTO `{PROJECT}.{CAMADA}.fis_ref_gld_flt_agg_nps` ref_nps
+        USING (
+        with flt_nps as (
+          select
+              f_nps.dat_resposta_nps
+            , f_nps.dat_envio_nps
+            , f_nps.num_dias_resposta
+            , f_nps.cod_job
+            , f_nps.cod_pedido
+            , f_nps.num_nota_nps
+            , d_nps.des_classificacao_nps
+            , f_nps.des_resposta_nps
+            , f_nps.flg_detrator_entrega
+            , f_nps.flg_detrator_qualidade
+            , f_nps.flg_detrator_troca
+            , f_nps.flg_detrator_atendimento
+            , f_nps.flg_detrator_produto_errado
+            , f_nps.flg_detrator_produto_avariado
+            , f_nps.flg_neutro_qualidade_atendimento
+            , f_nps.flg_neutro_entrega_rapida
+            , f_nps.flg_neutro_qualidade_produto
+            , f_nps.flg_neutro_prazo_longo
+            , f_nps.flg_neutro_atraso_entrega
+            , f_nps.flg_neutro_usabilidade_site
+            , f_nps.flg_promotor_atendimento_loja
+            , f_nps.flg_promotor_entrega_rapida
+            , f_nps.flg_promotor_usabilidade_site
+            , f_nps.flg_promotor_atendimento_sac
+            , f_nps.flg_promotor_qualidade_produto
+            , f_nps.flg_promotor_confianca_marca
+          from `{PROJECT}.{CAMADA}.fis_ref_gld_fat_nps_digital_1p` f_nps
+          join `{PROJECT}.{CAMADA}.fis_ref_gld_dim_classificacao_nota_nps` d_nps
+            on f_nps.num_nota_nps = d_nps.num_nota_nps
+          where dat_resposta_nps between date_sub(current_date('America/Sao_Paulo'), interval 8 day) and date_sub(current_date('America/Sao_Paulo'), interval 1 day)
+        )
+        , ft_venda as (
+          select
+              f_venda.dat_criacao_pedido
+            , coalesce(f_venda.dat_entrega, date'1900-01-01') as dat_entrega
+            , f_venda.cod_canal
+            , f_venda.nom_dispositivo
+            , 'NAO IDENTIFICADO' as des_modalidade_entrega
+            , coalesce(f_venda.sgl_estado_endereco, 'NI')  as sgl_estado_endereco
+            , f_venda.cod_pedido
+          from `{PROJECT}.{CAMADA}.fis_ref_gld_fat_vendas` f_venda
+          where f_venda.dat_criacao_pedido between date_sub(date_trunc(current_date, month), interval 3 month) and date_sub(current_date, interval 1 day)
+          and f_venda.flg_pedido_teste = 'NÃO'
+          group by 1, 2, 3, 4, 5, 6, 7
+        )
+        , temp_nps as (
+          select
+              f_nps.dat_resposta_nps
+            , f_nps.dat_envio_nps
+            , f_nps.num_dias_resposta
+            , f_venda.dat_criacao_pedido as dat_captado
+            , f_venda.dat_entrega
+            , f_venda.cod_canal as nom_canal
+            , f_venda.nom_dispositivo
+            , f_venda.des_modalidade_entrega
+            , f_venda.sgl_estado_endereco
+            , f_nps.des_classificacao_nps
+            , coalesce(f_nps.des_resposta_nps, '') as des_resposta_nps
+            , f_nps.flg_detrator_entrega
+            , f_nps.flg_detrator_qualidade
+            , f_nps.flg_detrator_troca
+            , f_nps.flg_detrator_atendimento
+            , f_nps.flg_detrator_produto_errado
+            , f_nps.flg_detrator_produto_avariado
+            , f_nps.flg_neutro_qualidade_atendimento
+            , f_nps.flg_neutro_entrega_rapida
+            , f_nps.flg_neutro_qualidade_produto
+            , f_nps.flg_neutro_prazo_longo
+            , f_nps.flg_neutro_atraso_entrega
+            , f_nps.flg_neutro_usabilidade_site
+            , f_nps.flg_promotor_atendimento_loja
+            , f_nps.flg_promotor_entrega_rapida
+            , f_nps.flg_promotor_usabilidade_site
+            , f_nps.flg_promotor_atendimento_sac
+            , f_nps.flg_promotor_qualidade_produto
+            , f_nps.flg_promotor_confianca_marca
+            , count(distinct f_nps.cod_pedido) as qtd_total_respostas_nps
+            , count(distinct if(f_nps.des_classificacao_nps = 'DETRATOR', f_nps.cod_pedido, null)) as qtd_nps_detrator
+            , count(distinct if(f_nps.des_classificacao_nps = 'NEUTRO', f_nps.cod_pedido, null)) as qtd_nps_neutro
+            , count(distinct if(f_nps.des_classificacao_nps = 'PROMOTOR', f_nps.cod_pedido, null)) as qtd_nps_promotor
+          from flt_nps f_nps
+          join ft_venda f_venda
+            on f_nps.cod_pedido = f_venda.cod_pedido
+          group by 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29
+        )
+        select *
+        from temp_nps
+      ) t_nps
+        ON ref_nps.dat_resposta_nps = t_nps.dat_resposta_nps
+        and ref_nps.dat_envio_nps = t_nps.dat_envio_nps
+        and ref_nps.dat_captado = t_nps.dat_captado
+        and coalesce(ref_nps.dat_entrega, date'1996-06-08') = coalesce(t_nps.dat_entrega, date'1996-06-08')
+        and ref_nps.nom_canal = t_nps.nom_canal
+        and ref_nps.nom_dispositivo = t_nps.nom_dispositivo
+        and ref_nps.des_modalidade_entrega = t_nps.des_modalidade_entrega
+        and ref_nps.sgl_estado_endereco = t_nps.sgl_estado_endereco
+        and ref_nps.des_classificacao_nps = t_nps.des_classificacao_nps
+        and coalesce(ref_nps.des_resposta_nps, 'nao respondeu') = coalesce(t_nps.des_resposta_nps, 'nao respondeu')
+        and ref_nps.flg_detrator_entrega = t_nps.flg_detrator_entrega
+        and ref_nps.flg_detrator_qualidade = t_nps.flg_detrator_qualidade
+        and ref_nps.flg_detrator_troca = t_nps.flg_detrator_troca
+        and ref_nps.flg_detrator_atendimento = t_nps.flg_detrator_atendimento
+        and ref_nps.flg_detrator_produto_errado = t_nps.flg_detrator_produto_errado
+        and ref_nps.flg_detrator_produto_avariado = t_nps.flg_detrator_produto_avariado
+        and ref_nps.flg_neutro_qualidade_atendimento = t_nps.flg_neutro_qualidade_atendimento
+        and ref_nps.flg_neutro_entrega_rapida = t_nps.flg_neutro_entrega_rapida
+        and ref_nps.flg_neutro_qualidade_produto = t_nps.flg_neutro_qualidade_produto
+        and ref_nps.flg_neutro_prazo_longo = t_nps.flg_neutro_prazo_longo
+        and ref_nps.flg_neutro_atraso_entrega = t_nps.flg_neutro_atraso_entrega
+        and ref_nps.flg_neutro_usabilidade_site = t_nps.flg_neutro_usabilidade_site
+        and ref_nps.flg_promotor_atendimento_loja = t_nps.flg_promotor_atendimento_loja
+        and ref_nps.flg_promotor_entrega_rapida = t_nps.flg_promotor_entrega_rapida
+        and ref_nps.flg_promotor_usabilidade_site = t_nps.flg_promotor_usabilidade_site
+        and ref_nps.flg_promotor_atendimento_sac = t_nps.flg_promotor_atendimento_sac
+        and ref_nps.flg_promotor_qualidade_produto = t_nps.flg_promotor_qualidade_produto
+        and ref_nps.flg_promotor_confianca_marca = t_nps.flg_promotor_confianca_marca
+      WHEN MATCHED and (ref_nps.qtd_total_respostas_nps <> t_nps.qtd_total_respostas_nps
+                        or ref_nps.qtd_nps_detrator <> t_nps.qtd_nps_detrator
+                        or ref_nps.qtd_nps_neutro <> t_nps.qtd_nps_neutro
+                        or ref_nps.qtd_nps_promotor <> t_nps.qtd_nps_promotor)
+        THEN UPDATE SET
+            ref_nps.qtd_total_respostas_nps = t_nps.qtd_total_respostas_nps
+          , ref_nps.qtd_nps_detrator = t_nps.qtd_nps_detrator
+          , ref_nps.qtd_nps_neutro = t_nps.qtd_nps_neutro
+          , ref_nps.qtd_nps_promotor = t_nps.qtd_nps_promotor
+      WHEN NOT MATCHED
+        THEN INSERT(dat_resposta_nps, dat_envio_nps, num_dias_resposta, dat_captado, dat_entrega, nom_canal, nom_dispositivo, des_modalidade_entrega, sgl_estado_endereco, des_classificacao_nps, des_resposta_nps, flg_detrator_entrega, flg_detrator_qualidade, flg_detrator_troca, flg_detrator_atendimento, flg_detrator_produto_errado, flg_detrator_produto_avariado, flg_neutro_qualidade_atendimento, flg_neutro_entrega_rapida, flg_neutro_qualidade_produto, flg_neutro_prazo_longo, flg_neutro_atraso_entrega, flg_neutro_usabilidade_site, flg_promotor_atendimento_loja, flg_promotor_entrega_rapida, flg_promotor_usabilidade_site, flg_promotor_atendimento_sac, flg_promotor_qualidade_produto, flg_promotor_confianca_marca, qtd_total_respostas_nps, qtd_nps_detrator, qtd_nps_neutro, qtd_nps_promotor)
+        VALUES(t_nps.dat_resposta_nps, t_nps.dat_envio_nps, t_nps.num_dias_resposta, t_nps.dat_captado, t_nps.dat_entrega, t_nps.nom_canal, t_nps.nom_dispositivo, t_nps.des_modalidade_entrega, t_nps.sgl_estado_endereco, t_nps.des_classificacao_nps, t_nps.des_resposta_nps, t_nps.flg_detrator_entrega, t_nps.flg_detrator_qualidade, t_nps.flg_detrator_troca, t_nps.flg_detrator_atendimento, t_nps.flg_detrator_produto_errado, t_nps.flg_detrator_produto_avariado, t_nps.flg_neutro_qualidade_atendimento, t_nps.flg_neutro_entrega_rapida, t_nps.flg_neutro_qualidade_produto, t_nps.flg_neutro_prazo_longo, t_nps.flg_neutro_atraso_entrega, t_nps.flg_neutro_usabilidade_site, t_nps.flg_promotor_atendimento_loja, t_nps.flg_promotor_entrega_rapida, t_nps.flg_promotor_usabilidade_site, t_nps.flg_promotor_atendimento_sac, t_nps.flg_promotor_qualidade_produto, t_nps.flg_promotor_confianca_marca, t_nps.qtd_total_respostas_nps, t_nps.qtd_nps_detrator, t_nps.qtd_nps_neutro, t_nps.qtd_nps_promotor)
+      ;
+  ACTIVE: "1"

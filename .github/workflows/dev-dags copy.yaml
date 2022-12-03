@@ -20,7 +20,7 @@ jobs:
       - name: List all changed files
         run: |
           CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort)
-          for file in CHANGED_FILES;
+          for file in $CHANGED_FILES;
           do
             echo "$file has been changed."
           done
@@ -28,14 +28,14 @@ jobs:
       - name: List all deleted files
         run: |
           DELETED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=RD | sort)
-          for file in DELETED_FILES;
+          for file in $DELETED_FILES;
           do
             echo "$file has been deleted."
           done
       - name: List all added or modified files
         run: |
           MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=ACM | sort)
-          for file in MODIFIED_FILES;
+          for file in $MODIFIED_FILES;
           do
             echo "$file has been added or modified."
           done

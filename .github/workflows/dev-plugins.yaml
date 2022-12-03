@@ -1,26 +1,26 @@
-name: New Deploy DAGs to Composer
+name: New Deploy plugins to Composer
 on:
   push:
     branches:
       - main
       - dev
     paths:
-      - dags/**
+      - plugins/**
   pull_request:
     branches:
       - main
       - dev
     paths:
-      - dags/**
+      - plugins/**
 jobs:
   deploy:
     name: Upload DAG files to Airflow
     runs-on: ubuntu-latest
     environment: dev
     env:
-      EXTENSIONS: \.py\|\.yaml
+      EXTENSIONS: \.py
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-      BUCKET_PATH: ${{ secrets.DEV_AIRFLOW_BUCKET }}/dags/
+      BUCKET_PATH: ${{ secrets.DEV_AIRFLOW_BUCKET }}/plugins/
 
     steps:
       # copying files to machine

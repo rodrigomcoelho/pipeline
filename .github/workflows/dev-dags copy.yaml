@@ -18,9 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     env:
-      FOLDER: dags
       EXTENSIONS: \.py\|\.yaml
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+      BUCKET_PATH: ${{ secrets.DEV_AIRFLOW_BUCKET }}/dags/
 
     steps:
       # copying files to machine
@@ -28,14 +28,9 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Verify files
-        run: |
-          FILES=$(git diff @~..@ --name-only --no-renames | sort)
-          for file in $FILES; do
-            echo $file
-          done
 
-      - name: Check if there is changed files
+      # check file changes
+      - name: Check file changes
         id: changed-files
         run: |
           ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '${{ env.EXTENSIONS }}' | sed -e ':a; N; $!ba; s/\n/ /g')
@@ -63,14 +58,15 @@ jobs:
             echo "$file has been either added or modified."
           done
 
+      # submit argo job for deploying
       - name: Applying changes to composer
         if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
-          DEST_BUCKET=${{ secrets.DEV_AIRFLOW_BUCKET }}/${{ env.FOLDER }}/
+
           echo '
           argo submit -n argo -w deploy/deploy-data-gcp.yml \
             --parameter "file_changed=${{ steps.changed-files.outputs.MODIFIED_FILES }}" \
             --parameter "file_deleted=${{ steps.changed-files.outputs.DELETED_FILES }}" \
-            --parameter "bucket_path=$DEST_BUCKET" \
+            --parameter "bucket_path=${{ env.BUCKET_PATH }}" \
             --parameter "branch=${{ env.BRANCH_NAME }}"
           '

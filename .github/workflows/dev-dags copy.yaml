@@ -36,8 +36,8 @@ jobs:
           fi
 
           echo "ANY_CHANGE=true" >> $GITHUB_OUTPUT
-          echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=ACM | sort | grep '${{ env.EXTENSIONS }}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
-          echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --name-status=RD | sort | grep '${{ env.EXTENSIONS }}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
+          echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=ACM | sort | grep '${{ env.EXTENSIONS }}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
+          echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=RD | sort | grep '${{ env.EXTENSIONS }}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
 
 
       # listing changed files

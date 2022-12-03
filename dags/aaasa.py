@@ -8,28 +8,16 @@ from airflow.models import Variable
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python import PythonOperator
 
-
+sys.path.append("/home/airflow/gcs/dags/data_engineering/")
+import plugins.humbill.connection.query as qr
 
 # Informações da DAG
 PROJECT = Variable.get("GCP_PROJECT_FIS_AE")
 LAYER = "REFINED"
-DAG_NAME = "fis_ref_gld_fat_navegacao_ga_etapa_funil_reprocessa_mensal"
-TAGS = [
-    "AE",
-    "FIS",
-    "REFINED",
-    "GA",
-    "NAVEGACAO",
-    "ETAPA",
-    "FUNIL",
-    "REPROCESSAMENTO",
-    "CLIENTE",
-]
-SCHEDULE_INTERVAL = "0 3 * * *"
-# Versão 1.0
-
-# Variaveis para o SQL
-CAMADA = Variable.get("GCP_LAYER_FIS_AE")
+DAG_NAME = "fis_ref_gld_tab_login_nike_unite"
+TAGS = ["AE", "FIS", "REFINED", "LOGIN", "CLIENTE"]
+SCHEDULE_INTERVAL = "20 10 * * *"
+# Versão 1.1
 
 # Leitura do arquivo json que contém as tabelas que iremos integrar
 with open(join(dirname(realpath(__file__)), "config", f"{DAG_NAME}.yaml")) as file:
@@ -43,19 +31,18 @@ dag = DAG(
     dag_id=DAG_NAME,
     schedule_interval=SCHEDULE_INTERVAL,
     max_active_runs=1,
-    start_date=datetime(2022, 11, 17, 0, 0),
-    dagrun_timeout=timedelta(minutes=90),
+    start_date=datetime(2022, 11, 25, 0, 0),
+    dagrun_timeout=timedelta(minutes=30),
     tags=TAGS,
 )
-sql = cfg_ingestion["SQL"].format(PROJECT=PROJECT, CAMADA=CAMADA)
+sql = cfg_ingestion["SQL"]
 # Definindo as tarefas que a DAG vai executar, nesse caso a execucao de dois programas Python, chamando sua execucao por comandos bash
 dummy_operator = DummyOperator(task_id="start_job", retries=3)
-
-reprocessa_funil = PythonOperator(
+fis_ref_gld_tab_login_nike_unite = PythonOperator(
     task_id="task_" + DAG_NAME,
     python_callable=qr.running_bq,
     op_kwargs={"sql": sql, "project": PROJECT},
     dag=dag,
 )
 
-dummy_operator >> reprocessa_funil
+dummy_operator >> fis_ref_gld_tab_login_nike_unite

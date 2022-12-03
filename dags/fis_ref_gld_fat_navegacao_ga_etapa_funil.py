@@ -8,8 +8,7 @@ from airflow.models import Variable
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python import PythonOperator
 
-sys.path.append("/home/airflow/gcs/dags/data_engineering/")
-import plugins.humbill.connection.query as qr
+
 
 # Informações da DAG
 PROJECT = Variable.get("GCP_PROJECT_FIS_AE")

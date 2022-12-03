@@ -23,7 +23,7 @@ jobs:
         run: |
           echo "ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort)" >> $GITHUB_OUTPUT
 
-          if [ -z $ALL_CHANGED_FILES];
+          if [ -z $ALL_CHANGED_FILES]
           then
             echo "has_changes=false" >> $GITHUB_OUTPUT
             exit 0

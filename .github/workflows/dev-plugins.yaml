@@ -5,13 +5,13 @@ on:
       - main
       - dev
     paths:
-      - plugins/**
+      - plugins/fisia/**
   pull_request:
     branches:
       - main
       - dev
     paths:
-      - plugins/**
+      - plugins/fisia/**
 jobs:
   deploy:
     name: Upload DAG files to Airflow
@@ -20,7 +20,7 @@ jobs:
     env:
       EXTENSIONS: \.py
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-      BUCKET_PATH: ${{ secrets.DEV_AIRFLOW_BUCKET }}/plugins/
+      BUCKET_PATH: ${{ secrets.DEV_AIRFLOW_BUCKET }}/
 
     steps:
       # copying files to machine

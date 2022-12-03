@@ -5,13 +5,13 @@ on:
       - main
       - dev
     paths:
-      - dags/**
+      - dags/fisia/**
   pull_request:
     branches:
       - main
       - dev
     paths:
-      - dags/**
+      - dags/fisia/**
 jobs:
   deploy:
     name: Upload DAG files to Airflow

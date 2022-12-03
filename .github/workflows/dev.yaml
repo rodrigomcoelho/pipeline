@@ -1,30 +1,34 @@
-name: Deploy Plugin Changes to Composer
+name: Deploy Changes to Composer
 on:
   push:
     branches:
       - main
       - dev
     paths:
-      - plugins/fisia/**
+      - plugins/**
+      - dags/**
   pull_request:
     branches:
       - main
       - dev
     paths:
-      - plugins/fisia/**
+      - plugins/**
+      - dags/**
 jobs:
   deploy:
     name: Upload DAG files to Airflow
     runs-on: ubuntu-latest
     environment: dev
     env:
-      EXTENSIONS: \.py
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
       BUCKET_PATH: ${{ secrets.DEV_AIRFLOW_BUCKET }}/
 
     strategy:
       fail-fast: true
       matrix:
+        folders:
+          - dags
+          - plugins
         include:
           - path: dags/fisia/
             extension: \.py\|\.yaml
@@ -38,7 +42,7 @@ jobs:
           fetch-depth: 0
 
       # check file changes
-      - name: Check file changes at ${{ matrix.path }}
+      - name: Check file changes at ${{ matrix.folders }}
         id: changed-files
         run: |
           ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '^${{ matrix.path }}' | grep '${{ matrix.extension }}' | sed -e ':a; N; $!ba; s/\n/ /g')
@@ -56,7 +60,7 @@ jobs:
 
 
       # listing changed files
-      - name: List all changed files at ${{ matrix.path }}
+      - name: List all changed files at ${{ matrix.folders }}
         if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
           for file in ${{ steps.changed-files.outputs.DELETED_FILES }}; do
@@ -67,7 +71,7 @@ jobs:
           done
 
       # submit argo job for deploying
-      - name: Applying changes to composer at ${{ matrix.path }}
+      - name: Applying changes to composer at ${{ matrix.folders }}
         if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
 

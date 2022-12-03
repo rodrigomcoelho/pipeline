@@ -5,13 +5,13 @@ on:
       - main
       - dev
     paths:
-      - dags/**
+      - dags/*
   pull_request:
     branches:
       - main
       - dev
     paths:
-      - dags/**
+      - dags/*
 jobs:
   deploy:
     name: Upload DAG files to Airflow
@@ -19,7 +19,7 @@ jobs:
     environment: dev
     env:
       FOLDER: dags
-      EXTENSIONS: \.py
+      EXTENSIONS: \.py|\.yaml
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
     steps:
@@ -31,10 +31,7 @@ jobs:
       - name: Check if there is changed files
         id: changed-files
         run: |
-          DEST_BUCKET=${{ secrets.DEV_AIRFLOW_BUCKET }}/${{ env.FOLDER }}/
-          echo "$GITHUB_PATH"
-          echo "$DEST_BUCKET"
-          ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '$EXTENSIONS' | sed -e ':a; N; $!ba; s/\n/ /g')
+          ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '${{ env.EXTENSIONS }}' | sed -e ':a; N; $!ba; s/\n/ /g')
 
           if [ -z $ALL_CHANGED_FILES]
           then
@@ -44,8 +41,8 @@ jobs:
           fi
 
           echo "ANY_CHANGE=true" >> $GITHUB_OUTPUT
-          echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=ACM | sort | grep '$EXTENSIONS'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
-          echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=RD | sort | grep '$EXTENSIONS'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
+          echo "MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=ACM | sort | grep '${{ env.EXTENSIONS }}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
+          echo "DELETED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=RD | sort | grep '${{ env.EXTENSIONS }}'| sed -e ':a; N; $!ba; s/\n/ /g')" >> $GITHUB_OUTPUT
 
 
       # listing changed files
@@ -62,7 +59,7 @@ jobs:
       - name: Applying changes to composer
         if: steps.changed-files.outputs.ANY_CHANGE == 'true'
         run: |
-          DEST_BUCKET=${{ secrets.DEV_AIRFLOW_BUCKET }}/${{ env.FOLDER }}/${{ github.event.repository.name }}/
+          DEST_BUCKET=${{ secrets.DEV_AIRFLOW_BUCKET }}/${{ env.FOLDER }}/
           echo '
           argo submit -n argo -w deploy/deploy-data-gcp.yml \
             --parameter "file_changed=${{ steps.changed-files.outputs.MODIFIED_FILES }}" \

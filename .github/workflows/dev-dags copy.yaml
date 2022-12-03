@@ -19,7 +19,7 @@ jobs:
     environment: dev
     env:
       FOLDER: dags
-      EXTENSIONS: \.py|\.yaml
+      EXTENSIONS: \.py\|\.yaml
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
 
     steps:

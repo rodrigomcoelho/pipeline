@@ -1,2 +1,0 @@
-dags/fis_ref_gld_fat_navegacao_ga_agregada.py; dags/fis_ref_gld_fat_navegacao_ga_etapa_funil.py; dags/fis_ref_gld_flt_agg_nps_aaa.py; dags/fis_ref_gld_flt_agg_nps.py
-dags/fis_ref_gld_fat_navegacao_ga_agregada.py dags/fis_ref_gld_fat_navegacao_ga_etapa_funil.py dags/fis_ref_gld_flt_agg_nps_aaa.py dags/fis_ref_gld_flt_agg_nps.py 

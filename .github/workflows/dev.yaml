@@ -42,7 +42,7 @@ jobs:
       - name: Check file changes at ${{ matrix.path }}
         id: changed-files
         run: |
-          ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '^${{ matrix.path }}' | grep '${{ matrix.extension }}')
+          ALL_CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort | grep '^${{ matrix.path }}' | grep '${{ matrix.extension }}' | sed -e ':a; N; $!ba; s/\n/ /g')
 
           if [ -z $ALL_CHANGED_FILES ]
           then

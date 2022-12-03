@@ -19,33 +19,23 @@ jobs:
       # listing changed files
       - name: List all changed files
         run: |
-          CHANGED_FILES=$(git log --diff-filter D --pretty="format:" --name-only | sed '/^$/d')
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            echo "$file was changed."
+          CHANGED_FILES=$(git diff @~..@ --name-only --no-renames | sort)
+          for file in CHANGED_FILES;
+          do
+            echo "$file has been changed."
           done
       # checking deleted files
       - name: List all deleted files
-        if: steps.changed-files.outputs.any_deleted == 'true'
         run: |
-          all_files=""
-          for file in ${{ steps.changed-files.outputs.deleted_files }}; do
-            if
+          DELETED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=RD | sort)
+          for file in DELETED_FILES;
+          do
+            echo "$file has been deleted."
           done
-      #pushing files to airflow composer
-      - name: Push files to composer
-        if: steps.changed-files.outputs.any_modified == 'true'
+      - name: List all added or modified files
         run: |
-          BRANCH=$(echo ${{ github.ref }} | sed 's/refs\/heads\///g')
-
-          BUCKET_PATH=${{ secrets.DEV_AIRFLOW_BUCKET_2_3_4 }}/dags/data_eng_fis_cliente/
-
-          echo "Moving files to '$BUCKET_PATH'"
-
-          echo '
-          argo submit -n argo -w deploy/deploy-data-gcp.yml \
-            --parameter "file_changed=${{ steps.changed-files.outputs.all_changed_files }}" \
-            --parameter "file_deleted=${{ steps.changed-files.outputs.deleted_files }}" \
-            --parameter "file_renamed=${{ steps.changed-files.outputs.renamed_files }}" \
-            --parameter "bucket_path=$BUCKET_PATH" \
-            --parameter "branch=$BRANCH"
-          '
+          MODIFIED_FILES=$(git diff @~..@ --name-only --no-renames --diff-filter=ACM | sort)
+          for file in MODIFIED_FILES;
+          do
+            echo "$file has been added or modified."
+          done
